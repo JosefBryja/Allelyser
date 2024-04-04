@@ -10,6 +10,7 @@
 ######################
 ###### Packages ######
 ######################
+
 library(tidyverse)
 library(readxl)
 library(here)
@@ -28,7 +29,7 @@ ChooseFile <- function(path){
   print(paste(colnames(SNP)[2], "selected"))
   
   # Cleaning the SNP table
-  SNP <<- SNP[SNP[,2] %in% c("AA", "GG", "AG","TT", "CC", "CT", NA), ]
+  SNP <<- SNP[SNP[,2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
   
   # Factorizing the data
   SNP[, 1] <<- as.factor(SNP[, 1])
@@ -43,8 +44,8 @@ ChooseFile <- function(path){
 HWE <- function(SNPtable, alpha = 0.05){
   # Observed genotype frequencies in the dataset
   HWTable <- table(SNPtable[, 2])
-  
-  # Observed allele frequencies in the dataset
+
+    # Observed allele frequencies in the dataset
   HWsum <- 2*(HWTable[[1]] + HWTable[[2]] + HWTable[[3]])
   p <- (2*HWTable[[1]] + HWTable[[2]])/HWsum
   q <- (2*HWTable[[3]] + HWTable[[2]])/HWsum
@@ -70,6 +71,7 @@ HWE <- function(SNPtable, alpha = 0.05){
   }else{
     print(paste0("The population is at Hardy-Weinberg equilibrium (p-value = ", round(pvalue, 4), ")"))
   }
+  return(pvalue)
 }
 
 
@@ -134,17 +136,60 @@ SNPHeatmap <- function(data, scaled = TRUE){
   }
 }
 
+######################################
+###### Analysis of multiple SNP ######
+######################################
+
+# Load the data
+data <- read_xlsx(here("APCgenotypesAnonym.xlsx"))
+data_cl <- as.data.frame(lapply(data[,-1], function(x) ifelse(!x %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), NA, x)))
+data_cl <- cbind(data[, 1], data_cl)
+data_cl <- as.data.frame(lapply(data_cl[,], as.factor))
+
+# Extract rsIDs
+SNP_ID <- str_extract(colnames(data)[-1], "(?<=_|\\b)rs\\d+")
+
+
+#####################
+###### LD plot ######
+#####################
+
+calculate_ld <- function(snp1, snp2) {
+  snp1_factor <- factor(snp1)
+  snp2_factor <- factor(snp2)
+  contingency_table <- table(snp1_factor, snp2_factor)
+  chi_square <- chisq.test(contingency_table)$statistic
+  sqrt(chi_square / length(snp1))
+}
+
+ld_matrix <- outer(data_cl, data_cl, Vectorize(calculate_ld))
+ld_matrix[lower.tri(ld_matrix)] <- NA
+rownames(ld_matrix) <- SNP_ID
+colnames(ld_matrix) <- SNP_ID
+
+ggplot(data = as.data.frame(as.table(ld_matrix)), aes(Var1, Var2, fill = Freq)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "cornflowerblue", high = "darkred", na.value = "transparent", guide = "legend") +  
+  theme_minimal() +
+  labs(x = "", y = "", title = "LD Plot") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold"),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8)) +
+  coord_fixed() +
+  theme(legend.position = "right")
+
 
 ##########################
 ###### Presentation ######
 ##########################
 
+# Single polymorphisms
 ChooseFile(here("APCgenotypesAnonym.xlsx"))
 HWE(SNP)
-ChiSq(SNP, significant_only = TRUE)
+table(SNP)
+ChiSq(SNP)
 SNPHeatmap(SNP, scaled = TRUE)
-
-
-
 
 
