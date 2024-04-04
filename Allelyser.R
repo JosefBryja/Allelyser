@@ -25,15 +25,18 @@ ChooseFile <- function(path){
   data <- read_xlsx(path)
   # Selecting a SNP
   a <- menu(colnames(data[,-1]), title="Please, select the SNP of your interest:") + 1
-  SNP <<- cbind(data[, 1], data[, a])
+  SNP <- cbind(data[, 1], data[, a])
   print(paste(colnames(SNP)[2], "selected"))
   
   # Cleaning the SNP table
-  SNP <<- SNP[SNP[,2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+  SNP <- SNP[SNP[,2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
   
   # Factorizing the data
-  SNP[, 1] <<- as.factor(SNP[, 1])
-  SNP[, 2] <<- as.factor(SNP[, 2])
+  SNP[, 1] <- as.factor(SNP[, 1])
+  SNP[, 2] <- as.factor(SNP[, 2])
+  
+  # Return the SNP table
+  return(SNP)
 }
 
 
@@ -108,11 +111,11 @@ ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
   # Changing p-values to numeric
   pData[,2] <- as.numeric(pData[,2])
     
-  # Print out the output table
+  # Return the output table
   if(significant_only == TRUE){
-    print(na.omit(pData[pData[,2] < alpha,]))
+    return(na.omit(pData[pData[,2] < alpha,]))
   }else{
-    print(pData)
+    return(pData)
   }
 }
 
@@ -141,13 +144,38 @@ SNPHeatmap <- function(data, scaled = TRUE){
 ######################################
 
 # Load the data
-data <- read_xlsx(here("APCgenotypesAnonym.xlsx"))
-data_cl <- as.data.frame(lapply(data[,-1], function(x) ifelse(!x %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), NA, x)))
-data_cl <- cbind(data[, 1], data_cl)
-data_cl <- as.data.frame(lapply(data_cl[,], as.factor))
+SNPdata <- read_xlsx(here("APCgenotypesAnonym.xlsx"))
+data_cl <- as.data.frame(lapply(SNPdata[,-1], function(x) ifelse(!x %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), NA, x)))
+data_cl <- cbind(SNPdata[, 1], data_cl)
 
 # Extract rsIDs
-SNP_ID <- str_extract(colnames(data)[-1], "(?<=_|\\b)rs\\d+")
+SNP_ID <- str_extract(colnames(SNPdata)[-1], "(?<=_|\\b)rs\\d+")
+
+# Chisq test for all the SNPs
+ChiSqAll <- function(data){
+  chi_sq <- data.frame(Diagnosis = levels(as.factor(data[,1])))
+  
+  # Single SNP
+  for(i in 2:ncol(data)){
+    ct <- table(data[,1], data[,i])
+    part_chi <- data.frame(matrix(nrow = 0, ncol = 2))
+    
+    for(x in 1:nrow(ct)){
+      # Single diagnosis
+      t <- ct[x, ]
+      
+      # Chi-square test
+      if(sum(t) > 0){
+        part_chi <- rbind(part_chi, c(rownames(ct)[x], round(chisq.test(t)$p.value, 6)))
+      }else{
+        part_chi <- rbind(part_chi, c(rownames(ct)[x], NA))
+      }
+    }
+    colnames(part_chi) <- c("Diagnosis", colnames(data_cl)[i])
+    chi_sq <- merge(chi_sq, part_chi, by = "Diagnosis")
+  }
+  return(chi_sq)
+}
 
 
 #####################
@@ -162,7 +190,7 @@ calculate_ld <- function(snp1, snp2) {
   sqrt(chi_square / length(snp1))
 }
 
-ld_matrix <- outer(data_cl, data_cl, Vectorize(calculate_ld))
+ld_matrix <- outer(data_cl[,-1], data_cl[,-1], Vectorize(calculate_ld))
 ld_matrix[lower.tri(ld_matrix)] <- NA
 rownames(ld_matrix) <- SNP_ID
 colnames(ld_matrix) <- SNP_ID
@@ -186,10 +214,12 @@ ggplot(data = as.data.frame(as.table(ld_matrix)), aes(Var1, Var2, fill = Freq)) 
 ##########################
 
 # Single polymorphisms
-ChooseFile(here("APCgenotypesAnonym.xlsx"))
+SNP <- ChooseFile(here("APCgenotypesAnonym.xlsx"))
 HWE(SNP)
 table(SNP)
 ChiSq(SNP)
 SNPHeatmap(SNP, scaled = TRUE)
+
+Chi_sq_table <- ChiSqAll(data_cl)
 
 
