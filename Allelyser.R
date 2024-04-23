@@ -173,6 +173,7 @@ ChiSqAll <- function(data){
       # Single diagnosis
       t <- ct[x, ]
       print(t)
+      
       # Observed allele frequencies in the dataset
       HWsum <- 2*(t[[1]] + t[[2]] + t[[3]])
       p <- (2*t[[1]] + t[[2]])/HWsum
