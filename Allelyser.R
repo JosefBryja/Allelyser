@@ -41,6 +41,7 @@ ChooseFile <- function(path){
 }
 
 
+
 ####################################################
 ###### Testing for Hardy-Weinberg equilibrium ######
 ####################################################
@@ -128,6 +129,18 @@ ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
   }
 }
 
+#####################################
+###### Test for single alleles ######
+#####################################
+
+Chisq_single_allele <- function(data){
+  single <- unlist(strsplit(as.character(data[,2]), ""))
+  single <- single[!is.na(single)]
+  Allele_table <- table(single)
+  chisq.test(Allele_table)
+}
+
+
 
 ###########################
 ###### Visualization ######
@@ -173,6 +186,7 @@ ChiSqAll <- function(data){
       # Single diagnosis
       t <- ct[x, ]
       print(t)
+      
       # Observed allele frequencies in the dataset
       HWsum <- 2*(t[[1]] + t[[2]] + t[[3]])
       p <- (2*t[[1]] + t[[2]])/HWsum
@@ -233,8 +247,8 @@ ggplot(data = as.data.frame(as.table(ld_matrix)), aes(Var1, Var2, fill = Freq)) 
 
 snp_mart <- useMart(biomart = "ENSEMBL_MART_SNP", dataset="hsapiens_snp")
 snp_attributes <- c("refsnp_id", "chr_name", "chrom_start")
-snp_locations <- getBM(attributes=snp_attributes, filters="snp_filter", 
-                      values=SNP_ID, mart=snp_mart)
+snp_locations <- getBM(attributes = snp_attributes, filters = "snp_filter", 
+                      values = SNP_ID, mart = snp_mart)
 
 ##########################
 ###### Presentation ######
