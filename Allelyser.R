@@ -15,7 +15,7 @@ library(tidyverse)
 library(readxl)
 library(here)
 library(biomaRt)
-
+library(epitools)
 
 ##########################
 ###### Data loading ######
@@ -133,15 +133,52 @@ ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
 ###### Test for single alleles ######
 #####################################
 
-Chisq_single_allele <- function(data){
+# Test the difference in number of alleles
+Chisq_SA <- function(data){
+  # Extract single alleles
   single <- unlist(strsplit(as.character(data[,2]), ""))
+  
+  # Remove NA values
   single <- single[!is.na(single)]
+  
+  # Contingency table 
   Allele_table <- table(single)
+  
+  # Test if there is difference in number of alleles
   chisq.test(Allele_table)
 }
 
+# Get the allele count for each diagnosis
+SA_counts <- function(data){
+  diagnoses <- levels(data[,1])
+  out <- data.frame(matrix(nrow = 0, ncol = 2))
+  names <- levels(as.factor(unlist(strsplit(as.character(data[,2]), ""))))
+  for(diag in diagnoses){
+    subdata <- data[data[,1] == diag,]
+    single <- unlist(strsplit(as.character(subdata[,2]), ""))
+    single <- single[!is.na(single)]
+    Allele_table <- as.data.frame(table(single))
+    out <- rbind(out, Allele_table[,2])
+  }
+  rownames(out) <- diagnoses
+  colnames(out) <- names
+  return(out)
+}
 
+# Tests
+SA_tests <- function(data){
+  test_data <- SA_counts(data)
+  return(list(
+    fisher.test(test_data),
+    chisq.test(test_data)
+  ))
+}
 
+odds_ratio <-function(data){
+  counts <- as.matrix(SA_counts(data))
+  out <- oddsratio(counts)
+  return(out)
+}
 ###########################
 ###### Visualization ######
 ###########################
