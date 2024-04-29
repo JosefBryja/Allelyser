@@ -6,6 +6,8 @@ library(readxl)
 library(ggplot2)
 library(writexl)
 library(here)
+library(epitools)
+library(gridGraphics)
 
 #Functions
 HWE <- function(SNPtable, alpha = 0.05){
@@ -43,14 +45,66 @@ HWE <- function(SNPtable, alpha = 0.05){
   return(result)
 }
 
-# Tests
-SA_tests <- function(data){
-  test_data <- SA_counts(data)
-  return(list(
-    fisher.test(test_data),
-    chisq.test(test_data)
-  ))
+ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
+  
+  # Creating and printing contingency table
+  conTable <- table(data)
+  
+  # For each diagnosis, we want to test if there is difference in the genotype frequencies
+  # Empty data frame
+  pData <- data.frame(matrix(nrow = 0, ncol = 2))
+  
+  # Chi-square for each diagnosis
+  for(x in 1:length(rownames(conTable))){
+    
+    # Single diagnosis
+    t <- conTable[x, ]
+    
+    # Observed allele frequencies in the dataset
+    HWsum <- 2*(t[[1]] + t[[2]] + t[[3]])
+    p <- (2*t[[1]] + t[[2]])/HWsum
+    q <- (2*t[[3]] + t[[2]])/HWsum
+    
+    # Theoretical probabilities of genotype frequencies
+    HWexp <- c(p^2, 2*p*q, q^2)
+    
+    # Chi-square test
+    if(sum(t) > 0){
+      pData <- rbind(pData, c(rownames(conTable)[x], round(chisq.test(t, p = HWexp)$p.value, 6)))
+    }else{
+      pData <- rbind(pData, c(rownames(conTable)[x], NA))
+    }
+  }
+  
+  # Renaming colums
+  colnames(pData) <- c("Diagnosis", "p-value")
+  
+  # Changing p-values to numeric
+  pData[,2] <- as.numeric(pData[,2])
+  
+  # Return the output table
+  if(significant_only == TRUE){
+    return(na.omit(pData[pData[,2] < alpha,]))
+  }else{
+    return(pData)
+  }
 }
+
+SNPHeatmap <- function(data, scaled = TRUE){
+  
+  # Create data for visualization
+  name <- colnames(data)[2]
+  t <- table(data)
+  t <- t[rowSums(t) > 0,]
+  
+  # Plot the data
+  if(scaled == TRUE){
+    return(heatmap(t, scale = "row", main = name))
+  }else if(scaled == FALSE){
+    return(heatmap(t, scale = "none"))
+  }
+}
+  
 
 # Define UI
 ui <- fluidPage(
@@ -76,7 +130,17 @@ ui <- fluidPage(
                  div(
                    tableOutput("con_table"),
                    style = "margin-left: 100px"
-                 )
+                 ),
+                 uiOutput("HW_download_button"),
+                 div(
+                   tableOutput("Chi_sq_table"),
+                   style = "margin-left: 100px"
+                   
+                 ),
+                 uiOutput("ChiSq_download_button"),
+                 
+                 plotOutput("SNP_heat"),
+                 uiOutput("heatMap_download_button")
                )
              )
     ), # tabPanel 1
@@ -112,7 +176,7 @@ server <- function(input, output) {
     # Create selectInput with unique values
     output$select_ui <- renderUI({
       checkboxGroupInput("selected_diagnosis", "Select a diagnosis:", 
-                         choices = c(unique_diagnosis), selected = NULL)
+                         choices = c(unique_diagnosis), selected = c(unique_diagnosis))
     })
     
     output$select_ui2 <- renderUI({
@@ -181,7 +245,7 @@ server <- function(input, output) {
     req(input$file1)
     data <- read_xlsx(input$file1$datapath)
     req(input$tool_button)
-    if (input$checkboxes[1] == "Hardy-Weinberg equilibrium") {
+    if ("Hardy-Weinberg equilibrium" %in% input$checkboxes) {
       SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
       
       # Cleaning the SNP table
@@ -201,7 +265,7 @@ server <- function(input, output) {
     req(input$file1)
     data <- read_xlsx(input$file1$datapath)
     req(input$tool_button)
-    if (input$checkboxes[1] == "Hardy-Weinberg equilibrium") {
+    if ("Hardy-Weinberg equilibrium" %in% input$checkboxes) {
       SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
       
       # Cleaning the SNP table
@@ -216,6 +280,115 @@ server <- function(input, output) {
       list_from_HWE[[2]]
     }
   }, rownames = TRUE)
+  
+  ########################################################
+  observeEvent(input$tool_button, {
+    req(input$file1)
+    req(input$tool_button)
+    if ("Hardy-Weinberg equilibrium" %in% input$checkboxes) {
+      output$HW_download_button <- renderUI({
+        downloadButton('downloadHW', 'Download HW table')
+      })
+    }  
+    
+  })
+  
+  
+  output$downloadHW <- downloadHandler(
+    filename = function() { "HW_Table.xlsx" },
+    content = function(file) {
+      req(input$file1)
+      data <- read_xlsx(input$file1$datapath)
+      req(input$tool_button)
+      if ("Hardy-Weinberg equilibrium" %in% input$checkboxes) {
+        SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
+        SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+        
+        SNP[, 1] <- as.factor(SNP[, 1])
+        SNP[, 2] <- as.factor(SNP[, 2])
+        list_from_HWE <- HWE(SNP)
+      }
+      write_xlsx(as.data.frame(list_from_HWE[[2]]),path = file,)
+    })
+  ########################################################
+  
+  
+  output$Chi_sq_table <- renderTable({
+    req(input$file1)
+    data <- read_xlsx(input$file1$datapath)
+    req(input$tool_button)
+    if ("CHi-Sq" %in% input$checkboxes) {
+      SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
+      SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+      CHi_sq <- ChiSq(SNP)
+    }
+  }, rownames = TRUE)
+  
+  ########################################################
+  observeEvent(input$tool_button, {
+    req(input$file1)
+    req(input$tool_button)
+    if ("CHi-Sq" %in% input$checkboxes) {
+      output$ChiSq_download_button <- renderUI({
+        downloadButton('downloadChiSq', 'Download CHi-Sq table')
+      })
+    }  
+    
+  })
+  
+  
+  output$downloadChiSq <- downloadHandler(
+    filename = function() "CHi-Sq_Table.xlsx" ,
+    content = function(file) {
+      req(input$file1)
+      data <- read_xlsx(input$file1$datapath)
+      req(input$tool_button)
+      if ("CHi-Sq" %in% input$checkboxes) {
+        SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
+        SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+      }
+      write_xlsx(as.data.frame(ChiSq(SNP)),path = file)
+    })
+  
+  ########################################################
+  
+  output$SNP_heat <- renderPlot({
+    req(input$file1)
+    data <- read_xlsx(input$file1$datapath)
+    req(input$tool_button)
+    if ("Heatmap" %in% input$checkboxes) {
+      SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
+      SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+      heat <- SNPHeatmap(SNP)
+    }
+  })
+  
+  observeEvent(input$tool_button, {
+    req(input$file1)
+    req(input$tool_button)
+    if ("Heatmap" %in% input$checkboxes) {
+      output$heatMap_download_button <- renderUI({
+        downloadButton('downloadPlot', 'Download Plot')
+    })
+    }  
+    
+  })
+  
+  
+  output$downloadPlot <- downloadHandler(
+    filename = function() { "test.png" },
+    content = function(file) {
+      req(input$file1)
+      data <- read_xlsx(input$file1$datapath)
+      req(input$tool_button)
+      if ("Heatmap" %in% input$checkboxes) {
+        SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
+        SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+      }
+      png(file)
+      print(SNPHeatmap(SNP))
+      dev.off()
+    })
   
 }
 # Run the application
