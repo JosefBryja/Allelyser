@@ -16,6 +16,7 @@ library(readxl)
 library(here)
 library(biomaRt)
 library(epitools)
+library(oddsratio)
 
 ##########################
 ###### Data loading ######
@@ -134,19 +135,19 @@ ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
 #####################################
 
 # Test the difference in number of alleles
-Chisq_SA <- function(data){
-  # Extract single alleles
-  single <- unlist(strsplit(as.character(data[,2]), ""))
-  
-  # Remove NA values
-  single <- single[!is.na(single)]
-  
-  # Contingency table 
-  Allele_table <- table(single)
-  
-  # Test if there is difference in number of alleles
-  chisq.test(Allele_table)
-}
+# Chisq_SA <- function(data){
+#   # Extract single alleles
+#   single <- unlist(strsplit(as.character(data[,2]), ""))
+#   
+#   # Remove NA values
+#   single <- single[!is.na(single)]
+#   
+#   # Contingency table 
+#   Allele_table <- table(single)
+#   
+#   # Test if there is difference in number of alleles
+#   chisq.test(Allele_table)
+# }
 
 # Get the allele count for each diagnosis
 SA_counts <- function(data){
@@ -169,15 +170,37 @@ SA_counts <- function(data){
 SA_tests <- function(data){
   test_data <- SA_counts(data)
   return(list(
-    fisher.test(test_data),
+    fisher.test(test_data, workspace = 2e7),
     chisq.test(test_data)
   ))
 }
 
 odds_ratio <-function(data){
   counts <- as.matrix(SA_counts(data))
-  out <- oddsratio(counts)
+  rows <- rownames(counts)
+  out <- as.data.frame(matrix(nrow = 0, ncol = 4))
+  for(row in rows){
+    test_table <- counts[row,]
+    test_table <- rbind(test_table, colSums(counts[!(rownames(counts) == row),]))
+    rownames(test_table) <- c(row, "Others")
+    ftest <- fisher.test(test_table)
+    print(test_table)
+    out <- rbind(out, c(ftest$estimate[[1]], ftest$conf.int[1], ftest$conf.int[2], ftest$p.value))
+  }
+  colnames(out) <- c("Odds Ratio", "Lower", "Upper", "p-value")
+  rownames(out) <- rows
   return(out)
+}
+
+mosaicplots <-function(data){
+  counts <- as.matrix(SA_counts(data))
+  rows <- rownames(counts)
+  for(row in rows){
+    test_table <- counts[row,]
+    test_table <- rbind(test_table, colSums(counts[!(rownames(counts) == row),]))
+    rownames(test_table) <- c(row, "Others")
+    mosaicplot(test_table, main = row, color = c("darkred", "gold"))
+  }
 }
 ###########################
 ###### Visualization ######
