@@ -199,26 +199,50 @@ mosaicplots <-function(data){
     test_table <- counts[row,]
     test_table <- rbind(test_table, colSums(counts[!(rownames(counts) == row),]))
     rownames(test_table) <- c(row, "Others")
-    mosaicplot(test_table, main = row, color = c("darkred", "gold"))
+    mosaicplot(test_table, main = row, color = c("cornflowerblue", "darkred"), cex.axis = 1.5)
   }
 }
 ###########################
 ###### Visualization ######
 ###########################
 
-SNPHeatmap <- function(data, scaled = TRUE){
-  
-  # Create data for visualization
+# SNPHeatmap <- function(data, scaled = TRUE){
+#   
+#   # Create data for visualization
+#   name <- colnames(data)[2]
+#   t <- table(data)
+#   t <- t[rowSums(t) > 0,]
+#   
+#   # Plot the data
+#   if(scaled == TRUE){
+#     heatmap(t, scale = "row", main = name, cellnote = t)
+#   }else if(scaled == FALSE){
+#     heatmap(t, scale = "none")
+#   }
+# }
+
+SNPHeatmap <- function(data){
   name <- colnames(data)[2]
-  t <- table(data)
-  t <- t[rowSums(t) > 0,]
+  # Create a table of counts
+  count_table <- table(data)
   
-  # Plot the data
-  if(scaled == TRUE){
-    heatmap(t, scale = "row", main = name)
-  }else if(scaled == FALSE){
-    heatmap(t, scale = "none")
-  }
+  # Convert table to a data frame
+  df <- as.data.frame(as.table(count_table))
+  names(df) <- c("diagnosis", "SNP", "count")
+  
+  # Create the heatmap using ggplot2
+  heatmap_plot <- ggplot(df, aes(x = SNP, y = diagnosis, fill = count, label = count)) +
+    geom_tile(color = "white") +
+    geom_text(size = 5, color = "black") +  # Add text labels
+    scale_fill_gradient(low = "cornflowerblue", high = "darkred") +  # Color gradient
+    labs(title = "SNP Heatmap", x = name, y = "diagnosis") +  # Axis labels and title
+    theme_minimal() +  # Minimal theme
+    
+    # Rotate x-axis labels for better readability
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Print the plot
+  print(heatmap_plot)
 }
 
 ######################################
