@@ -94,9 +94,10 @@ SNPHeatmap <- function(data, scaled = TRUE){
   
   # Create data for visualization
   name <- colnames(data)[2]
+  print(name)
   t <- table(data)
   t <- t[rowSums(t) > 0,]
-  
+  print(t)
   # Plot the data
   if(scaled == TRUE){
     return(heatmap(t, scale = "row", main = name))
