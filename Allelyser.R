@@ -150,18 +150,45 @@ ChiSq <- function(data, significant_only = FALSE, alpha = 0.05){
 # }
 
 # Get the allele count for each diagnosis
+# SA_counts <- function(data){
+#   data <- data[!is.na(data[,2]),]
+#   print(levels(as.factor(data)))
+#   diagnoses <- levels(data[,1])
+#   out <- data.frame(matrix(nrow = 0, ncol = 2))
+#   names <- levels(as.factor(unlist(strsplit(as.character(data[,2]), ""))))
+#   for(diag in diagnoses){
+#     subdata <- data[data[,1] == diag,]
+#     single <- unlist(strsplit(as.character(subdata[,2]), ""))
+#     single <- single[!is.na(single)]
+#     Allele_table <- as.data.frame(table(single))
+#     out <- rbind(out, Allele_table[,2])
+#   }
+#   rownames(out) <- diagnoses
+#   colnames(out) <- names
+#   return(out)
+# }
+
 SA_counts <- function(data){
+  data <- data[!is.na(data[,2]),]
   diagnoses <- levels(data[,1])
-  out <- data.frame(matrix(nrow = 0, ncol = 2))
   names <- levels(as.factor(unlist(strsplit(as.character(data[,2]), ""))))
+  
+  # Initialize empty dataframe
+  out <- data.frame(matrix(nrow = 0, ncol = length(names)))
+  
   for(diag in diagnoses){
     subdata <- data[data[,1] == diag,]
+    if(nrow(subdata) == 0) next  # Skip if no observations for this diagnosis
     single <- unlist(strsplit(as.character(subdata[,2]), ""))
     single <- single[!is.na(single)]
     Allele_table <- as.data.frame(table(single))
+    
+    # Append to output dataframe
     out <- rbind(out, Allele_table[,2])
   }
-  rownames(out) <- diagnoses
+  
+  # Set row names for diagnoses with observations
+  rownames(out) <- diagnoses[sapply(diagnoses, function(x) any(data[,1] == x))]
   colnames(out) <- names
   return(out)
 }
@@ -344,6 +371,8 @@ HWE(SNP)
 table(SNP)
 ChiSq(SNP)
 SNPHeatmap(SNP, scaled = TRUE)
+
+odds_ratio(SNP)
 
 Chi_sq_table <- ChiSqAll(data_cl)
 
