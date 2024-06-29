@@ -433,10 +433,10 @@ server <- function(input, output) {
     unique_diagnosis <- unique(data$diagnosis)
     
     SNP <- cbind(data[, 1], data[, input$selected_SNP_for_analysis])
-    SNP_not_in_filter <- SNP[!(SNP[, 2] %in% 
-                                 c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA)), ]
+    filter <- apply(expand.grid(c("A", "T", "C", "G"),c("A", "T", "C", "G")), 1, paste, collapse = "")
+    SNP_not_in_filter <- SNP[!(SNP[, 2] %in% c(filter, NA)),]
     
-    SNP <- SNP[SNP[, 2] %in% c("AA", "GG", "CC","TT", "AT", "AC", "AG", "CT", "CG", "GT", NA), ]
+    SNP <- SNP[SNP[, 2] %in% c(filter, NA), ]
     
     if (!is.null(input$checkboxes)){
       output$selected_SNP_text <- renderText({
